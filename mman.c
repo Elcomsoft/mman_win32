@@ -17,7 +17,7 @@ static int __map_mman_error(const DWORD err, const int deferr)
     return err;
 }
 
-static DWORD __map_mmap_prot_page(const int prot)
+static DWORD __map_mmap_prot_page(const int prot, const int flags)
 {
     DWORD protect = 0;
     
@@ -32,13 +32,13 @@ static DWORD __map_mmap_prot_page(const int prot)
     else
     {
         protect = ((prot & PROT_WRITE) != 0) ?
-                    PAGE_READWRITE : PAGE_READONLY;
+                    ((flags & MAP_PRIVATE) ? PAGE_WRITECOPY : PAGE_READWRITE) : PAGE_READONLY;
     }
     
     return protect;
 }
 
-static DWORD __map_mmap_prot_file(const int prot)
+static DWORD __map_mmap_prot_file(const int prot, const int flags)
 {
     DWORD desiredAccess = 0;
     
@@ -47,7 +47,9 @@ static DWORD __map_mmap_prot_file(const int prot)
         
     if ((prot & PROT_READ) != 0)
         desiredAccess |= FILE_MAP_READ;
-    if ((prot & PROT_WRITE) != 0)
+    if ((flags & MAP_PRIVATE) != 0)
+        desiredAccess |= FILE_MAP_COPY;
+    else if ((prot & PROT_WRITE) != 0)
         desiredAccess |= FILE_MAP_WRITE;
     if ((prot & PROT_EXEC) != 0)
         desiredAccess |= FILE_MAP_EXECUTE;
@@ -70,8 +72,8 @@ void* mmap(void *addr, size_t len, int prot, int flags, int fildes, OffsetType o
                     (DWORD)off : (DWORD)(off & 0xFFFFFFFFL);
     const DWORD dwFileOffsetHigh = (sizeof(OffsetType) <= sizeof(DWORD)) ?
                     (DWORD)0 : (DWORD)((off >> 32) & 0xFFFFFFFFL);
-    const DWORD protect = __map_mmap_prot_page(prot);
-    const DWORD desiredAccess = __map_mmap_prot_file(prot);
+    const DWORD protect = __map_mmap_prot_page(prot, flags);
+    const DWORD desiredAccess = __map_mmap_prot_file(prot, flags);
 
     const OffsetType maxSize = off + (OffsetType)len;
 
@@ -143,7 +145,7 @@ int munmap(void *addr, size_t len)
 
 int _mprotect(void *addr, size_t len, int prot)
 {
-    DWORD newProtect = __map_mmap_prot_page(prot);
+    DWORD newProtect = __map_mmap_prot_page(prot, 0);
     DWORD oldProtect = 0;
     
     if (VirtualProtect(addr, len, newProtect, &oldProtect))
