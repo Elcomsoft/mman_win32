@@ -31,8 +31,15 @@ static DWORD __map_mmap_prot_page(const int prot, const int flags)
     }
     else
     {
-        protect = ((prot & PROT_WRITE) != 0) ?
-                    ((flags & MAP_PRIVATE) ? PAGE_WRITECOPY : PAGE_READWRITE) : PAGE_READONLY;
+        if (prot & PROT_WRITE) {
+            if (flags & MAP_PRIVATE){
+                protect = PAGE_WRITECOPY;
+            }else{
+                protect = PAGE_READWRITE;
+            }
+        } else {
+            protect = PAGE_READONLY;
+        }
     }
     
     return protect;
@@ -45,12 +52,14 @@ static DWORD __map_mmap_prot_file(const int prot, const int flags)
     if (prot == PROT_NONE)
         return desiredAccess;
         
-    if ((prot & PROT_READ) != 0)
-        desiredAccess |= FILE_MAP_READ;
     if ((flags & MAP_PRIVATE) != 0)
         desiredAccess |= FILE_MAP_COPY;
-    else if ((prot & PROT_WRITE) != 0)
-        desiredAccess |= FILE_MAP_WRITE;
+    else {
+        if ((prot & PROT_READ) != 0)
+            desiredAccess |= FILE_MAP_READ;
+        if ((prot & PROT_WRITE) != 0)
+            desiredAccess |= FILE_MAP_WRITE;
+    } 
     if ((prot & PROT_EXEC) != 0)
         desiredAccess |= FILE_MAP_EXECUTE;
     
